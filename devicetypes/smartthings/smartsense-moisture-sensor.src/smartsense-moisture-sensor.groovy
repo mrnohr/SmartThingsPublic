@@ -20,7 +20,7 @@ metadata {
 		capability "Refresh"
 		capability "Temperature Measurement"
 		capability "Water Sensor"
-        
+
         command "enrollResponse"
 
 
@@ -29,16 +29,16 @@ metadata {
 		fingerprint inClusters: "0000,0001,0003,0402,0500,0020,0B05", outClusters: "0019", manufacturer: "CentraLite",  model: "3315-Seu"
 
 	}
- 
+
 	simulator {
- 
+
 	}
 
 	preferences {
 		input description: "This feature allows you to correct any temperature variations by selecting an offset. Ex: If your sensor consistently reports a temp that's 5 degrees too warm, you'd enter \"-5\". If 3 degrees too cold, enter \"+3\".", displayDuringSetup: false, type: "paragraph", element: "paragraph"
 		input "tempOffset", "number", title: "Temperature Offset", description: "Adjust temperature by this many degrees", range: "*..*", displayDuringSetup: false
 	}
- 
+
 	tiles(scale: 2) {
 		multiAttributeTile(name:"water", type: "generic", width: 6, height: 4){
 			tileAttribute ("device.water", key: "PRIMARY_CONTROL") {
@@ -46,7 +46,7 @@ metadata {
 				attributeState "wet", icon:"st.alarm.water.wet", backgroundColor:"#53a7c0"
 			}
 		}
-		valueTile("temperature", "device.temperature", inactiveLabel: false) {
+		valueTile("temperature", "device.temperature", inactiveLabel: false, width: 2, height: 2) {
 			state "temperature", label:'${currentValue}°',
 				backgroundColors:[
 					[value: 31, color: "#153591"],
@@ -64,12 +64,12 @@ metadata {
 		standardTile("refresh", "device.refresh", inactiveLabel: false, decoration: "flat", width: 2, height: 2) {
 			state "default", action:"refresh.refresh", icon:"st.secondary.refresh"
 		}
-		
+
 		main (["water", "temperature"])
 		details(["water", "temperature", "battery", "refresh"])
 	}
 }
- 
+
 def parse(String description) {
 	log.debug "description: $description"
 
@@ -86,10 +86,10 @@ def parse(String description) {
     else if (description?.startsWith('zone status')) {
 	    map = parseIasMessage(description)
     }
- 
+
 	log.debug "Parse returned $map"
 	def result = map ? createEvent(map) : null
-    
+
     if (description?.startsWith('enroll request')) {
     	List cmds = enrollResponse()
         log.debug "enroll response: ${cmds}"
@@ -97,7 +97,7 @@ def parse(String description) {
     }
     return result
 }
- 
+
 private Map parseCatchAllMessage(String description) {
     Map resultMap = [:]
     def cluster = zigbee.parse(description)
@@ -122,20 +122,20 @@ private Map parseCatchAllMessage(String description) {
 private boolean shouldProcessMessage(cluster) {
     // 0x0B is default response indicating message got through
     // 0x07 is bind message
-    boolean ignoredMessage = cluster.profileId != 0x0104 || 
+    boolean ignoredMessage = cluster.profileId != 0x0104 ||
         cluster.command == 0x0B ||
         cluster.command == 0x07 ||
         (cluster.data.size() > 0 && cluster.data.first() == 0x3e)
     return !ignoredMessage
 }
- 
+
 private Map parseReportAttributeMessage(String description) {
 	Map descMap = (description - "read attr - ").split(",").inject([:]) { map, param ->
 		def nameAndValue = param.split(":")
 		map += [(nameAndValue[0].trim()):nameAndValue[1].trim()]
 	}
 	log.debug "Desc Map: $descMap"
- 
+
 	Map resultMap = [:]
 	if (descMap.cluster == "0402" && descMap.attrId == "0000") {
 		def value = getTemperature(descMap.value)
@@ -144,10 +144,10 @@ private Map parseReportAttributeMessage(String description) {
 	else if (descMap.cluster == "0001" && descMap.attrId == "0020") {
 		resultMap = getBatteryResult(Integer.parseInt(descMap.value, 16))
 	}
- 
+
 	return resultMap
 }
- 
+
 private Map parseCustomMessage(String description) {
 	Map resultMap = [:]
 	if (description?.startsWith('temperature: ')) {
@@ -160,7 +160,7 @@ private Map parseCustomMessage(String description) {
 private Map parseIasMessage(String description) {
     List parsedMsg = description.split(' ')
     String msgCode = parsedMsg[2]
-    
+
     Map resultMap = [:]
     switch(msgCode) {
         case '0x0020': // Closed/No Motion/Dry
@@ -208,11 +208,11 @@ def getTemperature(value) {
 private Map getBatteryResult(rawValue) {
 	log.debug 'Battery'
 	def linkText = getLinkText(device)
-    
+
     def result = [
     	name: 'battery'
     ]
-    
+
 	def volts = rawValue / 10
 	def descriptionText
 	if (volts > 3.5) {
@@ -268,17 +268,17 @@ def refresh() {
 def configure() {
 	String zigbeeEui = swapEndianHex(device.hub.zigbeeEui)
 	log.debug "Configuring Reporting, IAS CIE, and Bindings."
-	def configCmds = [	
+	def configCmds = [
 		"zcl global write 0x500 0x10 0xf0 {${zigbeeEui}}", "delay 200",
 		"send 0x${device.deviceNetworkId} 1 1", "delay 500",
-        
+
         "zcl global send-me-a-report 1 0x20 0x20 300 0600 {01}", "delay 200",
         "send 0x${device.deviceNetworkId} 1 1", "delay 500",
-        
+
         "zcl global send-me-a-report 0x402 0 0x29 300 3600 {6400}", "delay 200",
         "send 0x${device.deviceNetworkId} 1 1", "delay 500",
-        
-        
+
+
 		"zdo bind 0x${device.deviceNetworkId} 1 1 0x402 {${device.zigbeeId}} {}", "delay 500",
 		"zdo bind 0x${device.deviceNetworkId} 1 1 0x001 {${device.zigbeeId}} {}", "delay 500"
 	]
